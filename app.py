@@ -64,7 +64,7 @@ if "run_bc_df" not in st.session_state:
 if "show_labels" not in st.session_state:
     st.session_state.show_labels = False
 
-# Plotly toolbar config dictionary to ensure standard interactive tools are visible
+# Plotly toolbar config dictionary
 PLOTLY_CONFIG = {
     'displayModeBar': True,
     'scrollZoom': True
@@ -81,12 +81,15 @@ with conf_col1:
     with st.expander("📏 Domain & Mesh", expanded=False):
         dimx = st.number_input("Domain X (in)", value=240, step=4, min_value=1)
         dimy = st.number_input("Domain Y (in)", value=192, step=4, min_value=1)
-        nelx = st.number_input("Elements X", value=120, step=4, min_value=1, max_value=150)
-        nely = st.number_input("Elements Y", value=96, step=4, min_value=1, max_value=150)
+        mesh_size = st.number_input("Mesh Size (in)", value=2.0, step=0.5, min_value=0.1)
         
+        # Calculate elements based on mesh size
+        nelx = int(dimx / mesh_size)
+        nely = int(dimy / mesh_size)
         total_elements = nelx * nely
-        if total_elements > 50000:
-            st.error(f"🚨 Mesh is too fine! Total elements: {total_elements:,}. The max allowed is 50,000.")
+        
+        if total_elements > 20000:
+            st.error(f"🚨 Mesh is too fine! Total elements: {total_elements:,}. The max allowed is 20,000.")
             st.stop()
         else:
             st.success(f"Grid: {nelx} x {nely}\n\nTotal: {total_elements:,}")
@@ -412,28 +415,65 @@ if st.session_state.run_finished:
     Z_plot_neg = -Z_final 
     custom_colorscale = [[0.0, '#08306b'], [0.4, '#2563eb'], [1.0, '#cbd5e1']]
 
-    roof_surface = go.Surface(z=np.zeros_like(Z_plot_neg), x=X_mesh, y=Y_mesh, colorscale=[[0, '#cbd5e1'], [1, '#cbd5e1']], showscale=False, hoverinfo='skip',opacity=0.8)
+    # Advanced lighting settings to make the 3D plot look solid and high-end
+    lighting_effects = dict(ambient=0.6, diffuse=0.8, roughness=0.4, specular=0.5, fresnel=0.2)
+
+    # Main Top and Bottom Surfaces
+    roof_surface = go.Surface(
+        z=np.zeros_like(Z_plot_neg), x=X_mesh, y=Y_mesh, 
+        colorscale=[[0, '#cbd5e1'], [1, '#cbd5e1']], 
+        showscale=False, hoverinfo='skip', opacity=1.0, lighting=lighting_effects
+    )
     
     bottom_surface = go.Surface(
-        z=Z_plot_neg, 
-        x=X_mesh, 
-        y=Y_mesh, 
-        colorscale=custom_colorscale, 
-        cmin=-tmax, 
-        cmax=0, 
+        z=Z_plot_neg, x=X_mesh, y=Y_mesh, 
+        surfacecolor=Z_plot_neg,
+        colorscale=custom_colorscale, cmin=-tmax, cmax=0, 
+        lighting=lighting_effects,
         colorbar=dict(
-            title='Thickness (in)',
-            orientation='h',
-            x=0.5,
-            y=1.05,
-            xanchor='center',
-            yanchor='bottom',
-            thickness=12,
-            len=0.6
+            title='Thickness (in)', orientation='h',
+            x=0.5, y=1.05, xanchor='center', yanchor='bottom',
+            thickness=12, len=0.6
         )
     )
 
-    fig = go.Figure(data=[roof_surface, bottom_surface])
+    # Generate 4 Side walls to close the geometry into a solid body
+    side_surfaces = []
+    
+    # Front Wall (y=0)
+    side_surfaces.append(go.Surface(
+        x=np.vstack((X_mesh[0, :], X_mesh[0, :])),
+        y=np.vstack((Y_mesh[0, :], Y_mesh[0, :])),
+        z=np.vstack((np.zeros_like(Z_plot_neg[0, :]), Z_plot_neg[0, :])),
+        surfacecolor=np.vstack((Z_plot_neg[0, :], Z_plot_neg[0, :])),
+        colorscale=custom_colorscale, cmin=-tmax, cmax=0, showscale=False, hoverinfo='skip', lighting=lighting_effects
+    ))
+    # Back Wall (y=max)
+    side_surfaces.append(go.Surface(
+        x=np.vstack((X_mesh[-1, :], X_mesh[-1, :])),
+        y=np.vstack((Y_mesh[-1, :], Y_mesh[-1, :])),
+        z=np.vstack((np.zeros_like(Z_plot_neg[-1, :]), Z_plot_neg[-1, :])),
+        surfacecolor=np.vstack((Z_plot_neg[-1, :], Z_plot_neg[-1, :])),
+        colorscale=custom_colorscale, cmin=-tmax, cmax=0, showscale=False, hoverinfo='skip', lighting=lighting_effects
+    ))
+    # Left Wall (x=0)
+    side_surfaces.append(go.Surface(
+        x=np.vstack((X_mesh[:, 0], X_mesh[:, 0])).T,
+        y=np.vstack((Y_mesh[:, 0], Y_mesh[:, 0])).T,
+        z=np.vstack((np.zeros_like(Z_plot_neg[:, 0]), Z_plot_neg[:, 0])).T,
+        surfacecolor=np.vstack((Z_plot_neg[:, 0], Z_plot_neg[:, 0])).T,
+        colorscale=custom_colorscale, cmin=-tmax, cmax=0, showscale=False, hoverinfo='skip', lighting=lighting_effects
+    ))
+    # Right Wall (x=max)
+    side_surfaces.append(go.Surface(
+        x=np.vstack((X_mesh[:, -1], X_mesh[:, -1])).T,
+        y=np.vstack((Y_mesh[:, -1], Y_mesh[:, -1])).T,
+        z=np.vstack((np.zeros_like(Z_plot_neg[:, -1]), Z_plot_neg[:, -1])).T,
+        surfacecolor=np.vstack((Z_plot_neg[:, -1], Z_plot_neg[:, -1])).T,
+        colorscale=custom_colorscale, cmin=-tmax, cmax=0, showscale=False, hoverinfo='skip', lighting=lighting_effects
+    ))
+
+    fig = go.Figure(data=[roof_surface, bottom_surface] + side_surfaces)
 
     support_depth = -tmax * 1.2
     
