@@ -32,7 +32,7 @@ st.markdown('<div class="tag-container"><span class="tag">Optimization</span><sp
 with st.expander("🎯 App Objective", expanded=False):
     st.markdown("""
     **Objective:** Distribute a constant amount of material to maximize the stiffness of a shell-type structure 
-    under external distributed load and self-weight.
+    under a uniform external distributed load and self-weight.
     """)
 
 # --- SETUP SESSION STATE ---
@@ -54,7 +54,7 @@ if "run_bc_df" not in st.session_state:
 if "show_labels" not in st.session_state:
     st.session_state.show_labels = False
 
-# --- SIDEBAR (Materials & Loads) ---
+# --- SIDEBAR (Materials & Distributed Load) ---
 with st.sidebar:
     st.header("🧪 Material Properties")
     E = st.number_input("Elastic Modulus (psi)", value=1500000, step=100000)
@@ -63,7 +63,8 @@ with st.sidebar:
     self_weight = st.checkbox("Include Self-Weight", value=True)
 
     st.header("⚖️ Loads")
-    w_u = st.number_input("Distributed Load (w_u)", value=0.2778)
+    st.info("This model uses a uniform distributed load applied across the entire domain.")
+    w_u = st.number_input("Distributed Load (w_u)", value=0.2778, format="%.4f")
 
 # ==========================================
 # PART 2: MODEL CONFIGURATION
@@ -98,7 +99,7 @@ col_bc, col_run = st.columns(2)
 
 # --- 3A. BOUNDARY CONDITIONS COLUMN ---
 with col_bc:
-    st.markdown('<div class="section-header">🎛️ Boundary Conditions</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">🎛️ Support Conditions</div>', unsafe_allow_html=True)
     
     if 'add_t' not in st.session_state: st.session_state.add_t = False
     if 'del_t' not in st.session_state: st.session_state.del_t = False
@@ -187,16 +188,6 @@ with col_bc:
         if not edited_bc_df.drop(columns=["ID"]).equals(st.session_state.bc_df):
             st.session_state.bc_df = edited_bc_df.drop(columns=["ID"])
             st.rerun()
-        # NEW: Added back the description of the boundary conditions table
-        with st.expander("ℹ️ How Supports Work", expanded=False):
-            st.markdown("""
-            Use the table below to manually edit the exact coordinates and dimensions of your supports.
-            * **X & Y (in):** The center location of the support.
-            * **Width & Height (in):** The dimensions of the rectangular support area.
-            * **Type:** 
-                * *Pinned:* Prevents translation (movement) but allows rotation (bending).
-                * *Fixed:* Prevents both translation and rotation.
-            """)
 
 # --- 3B. SOLVER / RUN COLUMN ---
 with col_run:
@@ -315,37 +306,23 @@ if st.session_state.run_finished:
     st.markdown("---")
     st.markdown('<div class="section-header">🕒 Interactive 3D Results</div>', unsafe_allow_html=True)
     
-    # NEW: Added guide for using the 3D plot
     with st.expander("🖱️ How to interact with the 3D Plot", expanded=False):
         st.markdown("""
         **On a Computer (Mouse):**
         * **Rotate:** Left-click and drag.
         * **Pan:** Right-click and drag (or `Shift` + Left-click).
         * **Zoom:** Use the mouse scroll wheel.
-        
-        **On a Phone/Tablet (Touch):**
-        * **Rotate:** Swipe with one finger.
-        * **Pan:** Swipe with two fingers.
-        * **Zoom:** Pinch in or out with two fingers.
-        
-        *Tip: You can use the menu in the top right corner of the plot to reset the view or download a snapshot!*
         """)
 
     steps = len(st.session_state.history)
-    
-    # Create a placeholder so we can render the plot BEFORE the controls below it
     plot_placeholder = st.empty()
     
-    # ------------------------------------------
-    # CONTROLS RENDERED BELOW THE PLOT
-    # ------------------------------------------
     st.markdown("<br>", unsafe_allow_html=True)
-    
     idx = st.slider("Iteration History", 0, steps - 1, steps - 1)
     
     col_cam, col_scale = st.columns(2)
     with col_cam:
-        view_choice = st.selectbox("🎥 Camera View", ["Default", "Bottom (XY)", "Front (XZ)", "Side (YZ)"])
+        view_choice = st.selectbox("🎥 Camera View", ["Default Isometric", "Top (XY)", "Bottom (XY)", "Front (XZ)", "Side (YZ)"])
     with col_scale:
         use_true_scale = st.checkbox("📏 True Z-Scale", value=True)
         if use_true_scale:
@@ -355,14 +332,15 @@ if st.session_state.run_finished:
             z_scale_pct = st.slider("Visual Z-Scale (%)", 0, 100, st.session_state.z_scale_val)
             st.session_state.z_scale_val = z_scale_pct
 
-    # Interpret camera selection
-    if view_choice == "Bottom (XY)": cam_eye, cam_up = dict(x=0, y=0, z=-2.5), dict(x=0, y=1, z=0)
+    # Interpret camera selection for Negative Extrusion
+    if view_choice == "Top (XY)": cam_eye, cam_up = dict(x=0, y=0, z=2.5), dict(x=0, y=1, z=0)
+    elif view_choice == "Bottom (XY)": cam_eye, cam_up = dict(x=0, y=0, z=-2.5), dict(x=0, y=1, z=0)
     elif view_choice == "Front (XZ)": cam_eye, cam_up = dict(x=0, y=-2.5, z=0), dict(x=0, y=0, z=1)
     elif view_choice == "Side (YZ)": cam_eye, cam_up = dict(x=-2.5, y=0, z=0), dict(x=0, y=0, z=1)
-    else: cam_eye, cam_up = dict(x=1.2, y=-1.5, z=-0.8), dict(x=0, y=0, z=1)
+    else: cam_eye, cam_up = dict(x=1.5, y=-1.5, z=1.2), dict(x=0, y=0, z=1)
     
     # ------------------------------------------
-    # GENERATE PLOT DATA
+    # GENERATE PLOT DATA (Negative Z Extrusion)
     # ------------------------------------------
     Z_raw = st.session_state.history[idx]
     Z_final = np.flipud(Z_raw) 
@@ -371,11 +349,20 @@ if st.session_state.run_finished:
     y_coords = np.linspace(0, dimy, Z_final.shape[0])
     X_mesh, Y_mesh = np.meshgrid(x_coords, y_coords)
 
+    # Thickness is extruded downwards
     Z_plot_neg = -Z_final 
+    
     custom_colorscale = [[0.0, '#08306b'], [0.4, '#2563eb'], [1.0, '#cbd5e1']]
 
-    roof_surface = go.Surface(z=np.zeros_like(Z_plot_neg), x=X_mesh, y=Y_mesh, colorscale=[[0, '#cbd5e1'], [1, '#cbd5e1']], showscale=False, hoverinfo='skip',opacity=0.8)
+    # Roof (Top Surface) at Z=0
+    roof_surface = go.Surface(
+        z=np.zeros_like(Z_plot_neg), 
+        x=X_mesh, y=Y_mesh, 
+        colorscale=[[0, '#e2e8f0'], [1, '#e2e8f0']], 
+        showscale=False, hoverinfo='skip', opacity=0.5
+    )
     
+    # Bottom Surface extruded to -Thickness
     bottom_surface = go.Surface(
         z=Z_plot_neg, 
         x=X_mesh, 
@@ -385,19 +372,16 @@ if st.session_state.run_finished:
         cmax=0, 
         colorbar=dict(
             title='Thickness (in)',
-            orientation='h',
-            x=0.5,
-            y=1.05,
-            xanchor='center',
-            yanchor='bottom',
-            thickness=12,
-            len=0.6
+            orientation='h', x=0.5, y=1.05,
+            xanchor='center', yanchor='bottom',
+            thickness=12, len=0.6
         )
     )
 
     fig = go.Figure(data=[roof_surface, bottom_surface])
 
-    support_depth = -tmax * 1.2
+    # Plot Supports extruding further down for visibility
+    support_depth = -tmax * 1.1 
     
     for i, row in st.session_state.run_bc_df.iterrows():
         hx, hy = row['Width'] / 2.0, row['Height'] / 2.0
@@ -407,31 +391,25 @@ if st.session_state.run_finished:
         fig.add_trace(go.Mesh3d(
             x=[x_min, x_max, x_max, x_min, x_min, x_max, x_max, x_min],
             y=[y_min, y_min, y_max, y_max, y_min, y_min, y_max, y_max],
-            z=[support_depth, support_depth, support_depth, support_depth, tmax * 0.1, tmax * 0.1, tmax * 0.1, tmax * 0.1],
+            z=[support_depth, support_depth, support_depth, support_depth, 0, 0, 0, 0],
             i=[7, 0, 0, 0, 4, 4, 6, 6, 4, 0, 3, 2],
             j=[3, 4, 1, 2, 5, 6, 5, 2, 0, 1, 6, 3],
             k=[0, 7, 2, 3, 6, 7, 1, 1, 5, 5, 7, 6],
-            color='red', 
-            opacity=0.8, 
-            flatshading=True,
-            name=f"Support S{i+1}",
-            showlegend=False
+            color='red', opacity=0.8, flatshading=True,
+            name=f"Support S{i+1}", showlegend=False
         ))
 
     fig.update_layout(
         scene=dict(
             xaxis=dict(range=[-0.05 * dimx, 1.05 * dimx], title='X (in)'),
             yaxis=dict(range=[-0.05 * dimy, 1.05 * dimy], title='Y (in)'),
-            zaxis=dict(range=[support_depth, tmax * 0.2], title='Z (in)'),
+            zaxis=dict(range=[support_depth, tmax * 0.1], title='Z (in)'),
             aspectratio=dict(x=dimx/max(dimx, dimy), y=dimy/max(dimx, dimy), z=z_scale_pct/100.0),
             camera=dict(eye=cam_eye, up=cam_up)
         ),
         margin=dict(l=0, r=0, b=0, t=50), height=600
     )
     
-    # ------------------------------------------
-    # INJECT PLOT INTO PLACEHOLDER (ABOVE CONTROLS)
-    # ------------------------------------------
     plot_placeholder.plotly_chart(fig, use_container_width=True)
     
     # STL Export
@@ -449,18 +427,4 @@ if st.session_state.run_finished:
         return buf.getvalue()
 
     stl_data = generate_stl(X_mesh, Y_mesh, Z_plot_neg)
-    st.download_button(label="📥 Download as .STL File", data=stl_data, file_name=f"Optimized_Slab_Iter{idx}.stl", mime="model/stl", type="primary")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    st.download_button(label="📥 Download as .STL File", data=stl_data, file_name=f"Optimized_Shell_Iter{idx}.stl", mime="model/stl", type="primary")
