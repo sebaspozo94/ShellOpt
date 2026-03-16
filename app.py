@@ -5,7 +5,6 @@ import plotly.graph_objects as go
 import io
 import stl               
 from stl import mesh 
-from scipy.spatial import Delaunay
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
@@ -81,7 +80,7 @@ with conf_col1:
     with st.expander("📏 Domain & Mesh", expanded=False):
         dimx = st.number_input("Domain X (in)", value=240, step=4, min_value=1)
         dimy = st.number_input("Domain Y (in)", value=192, step=4, min_value=1)
-        mesh_size = st.number_input("Mesh Size (in)", value=4.0, step=0.5, min_value=0.1)
+        mesh_size = st.number_input("Mesh Size (in)", value=2.0, step=0.5, min_value=0.1)
         
         # Calculate elements based on mesh size
         nelx = int(dimx / mesh_size)
@@ -106,7 +105,7 @@ with conf_col3:
     with st.expander("🎯 Optimization Settings", expanded=False):
         vol_frac = st.slider("Volume Fraction", 0.05, 1.0, 0.3)
         rmin = st.number_input("Filter Radius (rmin)", value=5.0, step=1.0)
-        itmax = st.number_input("Max Iterations", value=25, step=10)
+        itmax = st.number_input("Max Iterations", value=50, step=10)
 
 with conf_col4:
     with st.expander("📐 Thickness Limits", expanded=False):
@@ -360,7 +359,7 @@ with col_run:
 
 
 # ==========================================
-# PART 4: INTERACTIVE 3D RESULTS
+# PART 4: INTERACTIVE 3D RESULTS & STL EXPORT
 # ==========================================
 if st.session_state.run_finished:
     st.markdown("---")
@@ -509,22 +508,92 @@ if st.session_state.run_finished:
     
     plot_placeholder.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
     
-    # STL Export
+    # --- SOLID STL EXPORT FUNCTION ---
     st.markdown("---")
     st.subheader("💾 Export Geometry")
-    def generate_stl(X, Y, Z):
-        points2D = np.column_stack([X.flatten(), Y.flatten()])
-        tri = Delaunay(points2D)
-        slab_mesh = mesh.Mesh(np.zeros(tri.simplices.shape[0], dtype=mesh.Mesh.dtype))
-        for i, f in enumerate(tri.simplices):
+    
+    def generate_solid_stl(X, Y, Z_bottom):
+        ny, nx = Z_bottom.shape
+        offset = nx * ny
+        
+        # Flatten coordinates
+        x_flat = X.flatten()
+        y_flat = Y.flatten()
+        z_bot_flat = Z_bottom.flatten()
+        z_top_flat = np.zeros_like(z_bot_flat)
+        
+        # Combine vertices: Top vertices first, then Bottom vertices
+        vertices = np.zeros((2 * offset, 3))
+        vertices[:offset, 0] = x_flat
+        vertices[:offset, 1] = y_flat
+        vertices[:offset, 2] = z_top_flat
+        
+        vertices[offset:, 0] = x_flat
+        vertices[offset:, 1] = y_flat
+        vertices[offset:, 2] = z_bot_flat
+        
+        faces = []
+        
+        # 1. Top and Bottom surfaces
+        for i in range(ny - 1):
+            for j in range(nx - 1):
+                n0 = i * nx + j
+                n1 = n0 + 1
+                n2 = (i + 1) * nx + j
+                n3 = n2 + 1
+                
+                # Top surface triangles
+                faces.append([n0, n1, n2])
+                faces.append([n1, n3, n2])
+                
+                # Bottom surface triangles
+                b0, b1, b2, b3 = n0 + offset, n1 + offset, n2 + offset, n3 + offset
+                faces.append([b0, b2, b1])
+                faces.append([b1, b2, b3])
+                
+        # 2. Side Walls
+        # Front Wall (y = 0)
+        for j in range(nx - 1):
+            n0 = j
+            n1 = j + 1
+            faces.append([n0, n0 + offset, n1])
+            faces.append([n1, n0 + offset, n1 + offset])
+            
+        # Back Wall (y = max)
+        for j in range(nx - 1):
+            n0 = (ny - 1) * nx + j
+            n1 = n0 + 1
+            faces.append([n0, n1, n0 + offset])
+            faces.append([n1, n1 + offset, n0 + offset])
+            
+        # Left Wall (x = 0)
+        for i in range(ny - 1):
+            n0 = i * nx
+            n1 = (i + 1) * nx
+            faces.append([n0, n1, n0 + offset])
+            faces.append([n1, n1 + offset, n0 + offset])
+            
+        # Right Wall (x = max)
+        for i in range(ny - 1):
+            n0 = i * nx + (nx - 1)
+            n1 = (i + 1) * nx + (nx - 1)
+            faces.append([n0, n0 + offset, n1])
+            faces.append([n1, n0 + offset, n1 + offset])
+            
+        faces = np.array(faces)
+        
+        # Create solid mesh
+        solid_mesh = mesh.Mesh(np.zeros(faces.shape[0], dtype=mesh.Mesh.dtype))
+        for i, f in enumerate(faces):
             for j in range(3):
-                slab_mesh.vectors[i][j] = [points2D[f[j], 0], points2D[f[j], 1], Z.flatten()[f[j]]]
+                solid_mesh.vectors[i][j] = vertices[f[j], :]
+                
         buf = io.BytesIO()
-        slab_mesh.save('slab.stl', fh=buf)
+        solid_mesh.save('solid.stl', fh=buf)
         return buf.getvalue()
 
-    stl_data = generate_stl(X_mesh, Y_mesh, Z_plot_neg)
-    st.download_button(label="📥 Download as .STL File", data=stl_data, file_name=f"Optimized_Slab_Iter{idx}.stl", mime="model/stl", type="primary")
+    stl_data = generate_solid_stl(X_mesh, Y_mesh, Z_plot_neg)
+    st.download_button(label="📥 Download as Solid .STL", data=stl_data, file_name=f"Optimized_Solid_Iter{idx}.stl", mime="model/stl", type="primary")
 
 # ==========================================
 # PART 5: AUTHOR & CONTACT INFO
