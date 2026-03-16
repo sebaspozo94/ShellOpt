@@ -81,7 +81,7 @@ with conf_col1:
     with st.expander("📏 Domain & Mesh", expanded=False):
         dimx = st.number_input("Domain X (in)", value=240, step=4, min_value=1)
         dimy = st.number_input("Domain Y (in)", value=192, step=4, min_value=1)
-        mesh_size = st.number_input("Mesh Size (in)", value=2.0, step=0.5, min_value=0.1)
+        mesh_size = st.number_input("Mesh Size (in)", value=4.0, step=0.5, min_value=0.1)
         
         # Calculate elements based on mesh size
         nelx = int(dimx / mesh_size)
@@ -106,7 +106,7 @@ with conf_col3:
     with st.expander("🎯 Optimization Settings", expanded=False):
         vol_frac = st.slider("Volume Fraction", 0.05, 1.0, 0.3)
         rmin = st.number_input("Filter Radius (rmin)", value=5.0, step=1.0)
-        itmax = st.number_input("Max Iterations", value=50, step=10)
+        itmax = st.number_input("Max Iterations", value=25, step=10)
 
 with conf_col4:
     with st.expander("📐 Thickness Limits", expanded=False):
