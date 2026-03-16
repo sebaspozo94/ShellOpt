@@ -80,7 +80,7 @@ with conf_col1:
     with st.expander("📏 Domain & Mesh", expanded=False):
         dimx = st.number_input("Domain X (in)", value=240, step=4, min_value=1)
         dimy = st.number_input("Domain Y (in)", value=192, step=4, min_value=1)
-        mesh_size = st.number_input("Mesh Size (in)", value=2.0, step=0.5, min_value=0.1)
+        mesh_size = st.number_input("Mesh Size (in)", value=4.0, step=0.5, min_value=0.1)
         
         # Calculate elements based on mesh size
         nelx = int(dimx / mesh_size)
