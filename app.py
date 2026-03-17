@@ -596,9 +596,54 @@ if st.session_state.run_finished:
         solid_mesh.save('solid.stl', fh=buf)
         return buf.getvalue()
 
-    stl_data = generate_solid_stl(X_mesh, Y_mesh, Z_plot_neg)
-    st.download_button(label="📥 Download as Solid .STL", data=stl_data, file_name=f"Optimized_Solid_Iter{idx}.stl", mime="model/stl", type="primary")
+    # 2. Fast GIF Generator
+    def create_fast_gif(history, max_thick):
+        from PIL import Image
+        import matplotlib.cm as cm
+        import matplotlib.colors as mcolors
+        
+        # Map the thickness values (0 to tmax) to a color scale
+        norm = mcolors.Normalize(vmin=0, vmax=max_thick)
+        cmap = cm.get_cmap('Blues') 
+        
+        frames = []
+        for Z in history:
+            # Flip vertically to match your Plotly orientation, map to RGB, and convert to Image
+            img_array = np.uint8(cmap(norm(np.flipud(Z))) * 255)
+            img = Image.fromarray(img_array)
+            
+            # Scale the image up (e.g., 5x larger) so it isn't tiny, keeping it crisp
+            img = img.resize((img.width * 5, img.height * 5), Image.Resampling.NEAREST)
+            frames.append(img)
+            
+        # Save all frames into a GIF buffer
+        gif_buf = io.BytesIO()
+        frames[0].save(gif_buf, format='GIF', save_all=True, append_images=frames[1:], duration=100, loop=0)
+        return gif_buf.getvalue()
+        
+# 3. Export Buttons Side-by-Side
+    col_export1, col_export2 = st.columns(2)
+    
+    with col_export1:
+        stl_data = generate_solid_stl(X_mesh, Y_mesh, Z_plot_neg)
+        st.download_button(
+            label="📥 Download Solid .STL", 
+            data=stl_data, 
+            file_name=f"Optimized_Solid_Iter{idx}.stl", 
+            mime="model/stl", 
+            use_container_width=True
+        )
 
+    with col_export2:
+        gif_data = create_fast_gif(st.session_state.history, tmax)
+        st.download_button(
+            label="🎬 Download Animation (.GIF)", 
+            data=gif_data, 
+            file_name="Optimization_History.gif", 
+            mime="image/gif", 
+            type="primary",
+            use_container_width=True
+        )
 # ==========================================
 # PART 5: AUTHOR & CONTACT INFO
 # ==========================================
