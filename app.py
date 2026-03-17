@@ -609,11 +609,12 @@ col_info1, col_info2 = st.columns([2, 1])
 with col_info1:
     st.markdown("""
     **Created by:** Sebastian Pozo Ocampo  
+    *For custom workflows, project-specific studies, or collaboration:*
     **Contact:** [sebaspozo94@gmail.com](mailto:sebaspozo94@gmail.com)
     """)
 with col_info2:
     st.markdown("""
-    *For custom workflows, project-specific studies, or collaboration, connect with me:*
+    *Connect with me:*
     * [Website](https://streamline-gallery-5d621e11.buildaispace.app)  
     * [LinkedIn](https://www.linkedin.com/in/sebastianpozo94/)
     * [GitHub](https://github.com/sebaspozo94)
