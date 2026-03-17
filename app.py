@@ -42,6 +42,10 @@ with st.expander("🎯 App Objective", expanded=False):
     st.markdown("""
     **Objective:** Distribute a constant amount of material to maximize the stiffness of a shell-type structure 
     under external distributed load and self-weight.
+    * The amount of material distributed is given by a fraction of the solid with sides: Domain X, Domain y, Min Thickness.
+
+    
+    📄 [**Read the detailed code explanation and documentation here (PDF)**](https://github.com/sebaspozo94/2.5DOpt/blob/main/2.5DOpt.pdf)
     """)
 
 # --- SETUP SESSION STATE ---
