@@ -512,9 +512,9 @@ if st.session_state.run_finished:
     
     plot_placeholder.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
     
-    # --- SOLID STL EXPORT FUNCTION ---
+# --- EXPORT SECTION ---
     st.markdown("---")
-    st.subheader("💾 Export Geometry")
+    st.subheader("💾 Export Geometry & Animation")
     
     def generate_solid_stl(X, Y, Z_bottom):
         ny, nx = Z_bottom.shape
