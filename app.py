@@ -45,7 +45,7 @@ with st.expander("🎯 App Objective", expanded=False):
     * The amount of material distributed is given by a fraction of the solid with sides: Domain X, Domain y, Min Thickness.
 
     
-    📄 [**Read the detailed code explanation and documentation here (PDF)**](https://github.com/sebaspozo94/2.5DOpt/blob/main/2.5DOpt.pdf)
+    📄 [**Read the detailed code explanation and documentation here (PDF)**](https://github.com/sebaspozo94/ShellOpt/blob/main/ShellOpt.pdf)
     """)
 
 # --- SETUP SESSION STATE ---
